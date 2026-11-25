@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>JJ 그림 퍼즐</title>
+<style>
+  :root {
+    --bg: #fff6ec; --ink: #3b2a4a; --sub: #8a7a99; --card: #ffffff;
+    --pri: #ff6f91; --pri2: #ffa26b; --ok: #2ec4a6; --line: #f0e2d6;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font-family: -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+    min-height: 100vh; min-height: 100dvh; overflow-x: hidden;
+    padding: max(12px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
+  }
+  .top { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .top h1 { font-size: clamp(18px, 5vw, 22px); font-weight: 900; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .back { text-decoration: none; color: var(--sub); font-size: 14px; font-weight: 700; padding: 6px 10px; border-radius: 99px; background: #fff; border: 1px solid var(--line); }
+  body.in-app .back { display: none; }
+  .btn {
+    border: none; border-radius: 14px; padding: 11px 16px; font-size: 15px; font-weight: 800; cursor: pointer;
+    background: linear-gradient(135deg, var(--pri), var(--pri2)); color: #fff; box-shadow: 0 4px 12px rgba(255, 111, 145, .3);
+  }
+  .btn.ghost { background: #fff; color: var(--ink); border: 1.5px solid var(--line); box-shadow: none; }
+  .btn:active { transform: scale(.96); }
+
+  /* 그림 고르기 */
+  #pick p.lead { color: var(--sub); font-size: 14px; margin-bottom: 12px; line-height: 1.5; }
+  .pick-row { display: flex; gap: 8px; margin-bottom: 12px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 9px; }
+  .th { position: relative; aspect-ratio: 1; border-radius: 14px; overflow: hidden; background: #f3e7dc; border: 2px solid #fff; box-shadow: 0 2px 8px rgba(59, 42, 74, .1); cursor: pointer; }
+  .th img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .th .ok { position: absolute; right: 5px; top: 5px; background: var(--ok); color: #fff; font-size: 11px; font-weight: 900; padding: 2px 6px; border-radius: 99px; }
+
+  /* 게임판 */
+  #play { display: none; flex-direction: column; align-items: center; }
+  #play.on { display: flex; }
+  #pick.off { display: none; }
+  .bar { display: flex; gap: 8px; align-items: center; justify-content: center; margin-bottom: 10px; width: 100%; max-width: 520px; flex-wrap: wrap; }
+  .chip { background: #fff; border: 1px solid var(--line); border-radius: 99px; padding: 6px 12px; font-size: 14px; font-weight: 800; }
+  .chip b { color: var(--pri); }
+  .art-title { font-size: 14px; color: var(--sub); margin-bottom: 8px; text-align: center; font-weight: 700; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .board-wrap { position: relative; width: min(92vw, calc(100dvh - 250px), 520px); min-width: 220px; }
+  @supports not (height: 100dvh) { .board-wrap { width: min(92vw, calc(100vh - 250px), 520px); } }
+  .board {
+    width: 100%; aspect-ratio: 1; display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px;
+    background: #fff; padding: 4px; border-radius: 18px; box-shadow: 0 8px 24px rgba(59, 42, 74, .15);
+  }
+  .pc {
+    border-radius: 9px; background-size: 300% 300%; background-repeat: no-repeat; cursor: pointer;
+    transition: transform .18s, box-shadow .18s, outline-color .18s; outline: 3px solid transparent; outline-offset: -3px;
+    position: relative;
+  }
+  .pc.sel { transform: scale(.9); outline-color: var(--pri); box-shadow: 0 0 0 4px rgba(255, 111, 145, .35); z-index: 2; }
+  .pc.good::after { content: ''; position: absolute; inset: 0; border-radius: 9px; box-shadow: inset 0 0 0 3px rgba(46, 196, 166, .55); }
+  .pc.swap { animation: pop .25s; }
+  @keyframes pop { 50% { transform: scale(1.06); } }
+  .preview { position: absolute; inset: 4px; border-radius: 14px; background-size: cover; opacity: 0; pointer-events: none; transition: opacity .25s; }
+  .preview.on { opacity: .92; }
+  .tools { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; justify-content: center; }
+  .mini { width: 54px; height: 54px; border-radius: 10px; background-size: cover; border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,.12); }
+
+  /* 완성 */
+  .win { position: fixed; inset: 0; background: rgba(59, 42, 74, .55); display: none; align-items: center; justify-content: center; z-index: 50; padding: 20px; overflow-y: auto; }
+  .win.on { display: flex; }
+  .win-card { background: #fff; border-radius: 24px; padding: 22px 20px; width: min(360px, 100%); text-align: center; margin: auto; }
+  .win-card img { width: 100%; border-radius: 16px; margin: 10px 0; aspect-ratio: 1; object-fit: cover; }
+  .win-card h2 { font-size: 22px; }
+  .stars { font-size: 34px; letter-spacing: 4px; margin: 4px 0; }
+  .win-card p { color: var(--sub); font-size: 14px; margin-bottom: 12px; line-height: 1.5; }
+  .win-card .tools { margin-top: 0; }
+  .confetti { position: fixed; top: -12px; width: 9px; height: 14px; z-index: 60; pointer-events: none; animation: fall linear forwards; }
+  @keyframes fall { to { transform: translateY(110vh) rotate(720deg); } }
+
+  @media (max-width: 360px) { .grid { grid-template-columns: repeat(3, 1fr); } .btn { padding: 10px 12px; font-size: 14px; } }
+  @media (orientation: landscape) and (max-height: 500px) {
+    #play.on { flex-direction: row; flex-wrap: wrap; justify-content: center; gap: 0 16px; }
+    .board-wrap { width: min(calc(100dvh - 80px), 60vw); min-width: 0; }
+    .top { margin-bottom: 4px; }
+    .side { display: flex; flex-direction: column; align-items: center; max-width: 220px; }
+    .bar { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+  <div class="top">
+    <a class="back" href="index.html?open=play">← 갤러리</a>
+    <h1>🧩 JJ 그림 퍼즐</h1>
+  </div>
+
+  <section id="pick">
+    <p class="lead">JJ의 그림을 하나 골라요. 9조각으로 섞이면 <b>두 조각을 차례로 눌러 자리를 바꿔</b> 그림을 완성해요!</p>
+    <div class="pick-row"><button class="btn" id="randBtn">🎲 아무 그림이나</button></div>
+    <div class="grid" id="grid"></div>
+  </section>
+
+  <section id="play">
+    <div class="side">
+      <div class="art-title" id="artTitle"></div>
+      <div class="bar">
+        <span class="chip">🔁 <b id="moves">0</b>번</span>
+        <span class="chip">⏱ <b id="time">0</b>초</span>
+        <span class="chip">✅ <b id="good">0</b>/9</span>
+      </div>
+    </div>
+    <div class="board-wrap">
+      <div class="board" id="board"></div>
+      <div class="preview" id="preview"></div>
+    </div>
+    <div class="side">
+      <div class="tools">
+        <div class="mini" id="mini" title="완성 그림"></div>
+        <button class="btn ghost" id="peekBtn">👀 정답 살짝</button>
+        <button class="btn ghost" id="shufBtn">🔀 다시 섞기</button>
+        <button class="btn ghost" id="otherBtn">🖼 다른 그림</button>
+      </div>
+    </div>
+  </section>
+
+  <div class="win" id="win">
+    <div class="win-card">
+      <h2>🎉 완성!</h2>
+      <div class="stars" id="stars">★★★</div>
+      <img id="winImg" alt="">
+      <p id="winMsg"></p>
+      <div class="tools">
+        <button class="btn" id="nextBtn">다음 그림 ▶</button>
+        <button class="btn ghost" id="againBtn">한 번 더</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+  try { if (window.self !== window.top) document.body.classList.add('in-app'); } catch (e) { document.body.classList.add('in-app'); }
+
+  const KEY = 'agjj_puzzle_v1';
+  const load = () => { try { return JSON.parse(localStorage.getItem(KEY)) || { done: {} }; } catch (e) { return { done: {} }; } };
+  const save = v => { try { localStorage.setItem(KEY, JSON.stringify(v)); } catch (e) {} };
+  const $ = id => document.getElementById(id);
+
+  let works = [], cur = null, order = [], sel = -1, moves = 0, t0 = 0, timer = null, peekT = null;
+
+  async function boot() {
+    try {
+      const r = await fetch('thumbs/index.json?v=1');
+      works = (await r.json()).works || [];
+    } catch (e) { works = []; }
+    renderGrid();
+  }
+  const src = w => `thumbs/${w.id}.webp`;
+
+  function renderGrid() {
+    const st = load();
+    $('grid').innerHTML = works.map((w, i) => `
+      <div class="th" data-i="${i}">
+        <img loading="lazy" src="${src(w)}" alt="">
+        ${st.done[w.id] ? `<span class="ok">✓ ${st.done[w.id]}번</span>` : ''}
+      </div>`).join('') || '<p class="lead">그림을 불러오지 못했어요. 잠시 후 다시 열어 주세요.</p>';
+    $('grid').querySelectorAll('.th').forEach(el => el.onclick = () => start(works[+el.dataset.i]));
+  }
+
+  function shuffled() {
+    let a;
+    do {
+      a = [0, 1, 2, 3, 4, 5, 6, 7, 8];
+      for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+    } while (a.filter((v, i) => v === i).length > 2);   // 처음부터 맞는 조각은 2개 이하
+    return a;
+  }
+
+  function start(w) {
+    cur = w; order = shuffled(); sel = -1; moves = 0;
+    $('pick').classList.add('off'); $('play').classList.add('on'); $('win').classList.remove('on');
+    $('artTitle').textContent = '「' + (w.title || 'JJ의 그림') + '」';
+    $('mini').style.backgroundImage = `url("${src(w)}")`;
+    $('preview').style.backgroundImage = `url("${src(w)}")`;
+    t0 = Date.now(); clearInterval(timer);
+    timer = setInterval(() => { $('time').textContent = Math.floor((Date.now() - t0) / 1000); }, 500);
+    $('time').textContent = 0;
+    draw();
+    window.scrollTo(0, 0);
+  }
+
+  function draw() {
+    const b = $('board');
+    b.innerHTML = order.map((p, slot) => {
+      const x = (p % 3) * 50, y = Math.floor(p / 3) * 50;
+      return `<div class="pc ${p === slot ? 'good' : ''} ${slot === sel ? 'sel' : ''}" data-s="${slot}"
+        style="background-image:url('${src(cur)}');background-position:${x}% ${y}%"></div>`;
+    }).join('');
+    b.querySelectorAll('.pc').forEach(el => el.onclick = () => tap(+el.dataset.s));
+    $('moves').textContent = moves;
+    $('good').textContent = order.filter((v, i) => v === i).length;
+  }
+
+  function tap(s) {
+    if (sel === -1) { sel = s; draw(); beep(520, .05); return; }
+    if (sel === s) { sel = -1; draw(); return; }
+    [order[sel], order[s]] = [order[s], order[sel]];
+    const a = sel; sel = -1; moves++;
+    draw();
+    [a, s].forEach(k => $('board').children[k].classList.add('swap'));
+    beep(order[s] === s || order[a] === a ? 780 : 640, .07);
+    if (order.every((v, i) => v === i)) setTimeout(win, 300);
+  }
+
+  function win() {
+    clearInterval(timer);
+    const secs = Math.floor((Date.now() - t0) / 1000);
+    const st = load();
+    const first = !st.done[cur.id];
+    if (!st.done[cur.id] || moves < st.done[cur.id]) st.done[cur.id] = moves;
+    save(st);
+    if (first) { try { localStorage.setItem('agjj_pending_paint', String((parseInt(localStorage.getItem('agjj_pending_paint') || '0', 10) || 0) + 1)); } catch (e) {} }
+    const s = moves <= 8 ? 3 : moves <= 14 ? 2 : 1;
+    $('stars').textContent = '★'.repeat(s) + '☆'.repeat(3 - s);
+    $('winImg').src = src(cur);
+    $('winMsg').innerHTML = `「${cur.title || 'JJ의 그림'}」<br>${moves}번 바꿔서 ${secs}초 만에 완성했어요!` + (first ? '<br>🎁 처음 완성 보상 💧+1' : '');
+    $('win').classList.add('on');
+    confetti();
+    [660, 880, 1100].forEach((f, i) => setTimeout(() => beep(f, .12), i * 120));
+  }
+
+  function confetti() {
+    const cs = ['#ff6f91', '#ffa26b', '#ffd166', '#2ec4a6', '#7b8cff', '#c77dff'];
+    for (let i = 0; i < 46; i++) {
+      const c = document.createElement('div');
+      c.className = 'confetti';
+      c.style.left = Math.random() * 100 + 'vw';
+      c.style.background = cs[i % cs.length];
+      c.style.animationDuration = (1.6 + Math.random() * 1.6) + 's';
+      c.style.animationDelay = (Math.random() * .4) + 's';
+      document.body.appendChild(c);
+      setTimeout(() => c.remove(), 3800);
+    }
+  }
+
+  let ac = null;
+  function beep(f, d) {
+    try {
+      ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+      const o = ac.createOscillator(), g = ac.createGain();
+      o.type = 'triangle'; o.frequency.value = f;
+      g.gain.setValueAtTime(.12, ac.currentTime); g.gain.exponentialRampToValueAtTime(.001, ac.currentTime + d + .08);
+      o.connect(g); g.connect(ac.destination); o.start(); o.stop(ac.currentTime + d + .1);
+    } catch (e) {}
+  }
+
+  function backToPick() {
+    clearInterval(timer);
+    $('play').classList.remove('on'); $('pick').classList.remove('off'); $('win').classList.remove('on');
+    renderGrid();
+  }
+  const randomWork = () => works[Math.floor(Math.random() * works.length)];
+
+  $('randBtn').onclick = () => works.length && start(randomWork());
+  $('shufBtn').onclick = () => cur && start(cur);
+  $('otherBtn').onclick = backToPick;
+  $('againBtn').onclick = () => start(cur);
+  $('nextBtn').onclick = () => {
+    const st = load();
+    const left = works.filter(w => !st.done[w.id]);
+    start((left.length ? left : works)[Math.floor(Math.random() * (left.length || works.length))]);
+  };
+  $('peekBtn').onclick = () => {
+    $('preview').classList.add('on');
+    clearTimeout(peekT); peekT = setTimeout(() => $('preview').classList.remove('on'), 1500);
+  };
+  boot();
+</script>
+</body>
+</html>
